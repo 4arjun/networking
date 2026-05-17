@@ -5,10 +5,8 @@
 #include <unistd.h>
 
 int main() {
-
     int sock;
     char buffer[1024];
-
     struct sockaddr_in server_addr;
 
     // 1 Create socket
@@ -21,11 +19,18 @@ int main() {
     // 2 Connect to server
     connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
 
-    // 3 Send message
-    strcpy(buffer, "Hello Server");
-    send(sock, buffer, sizeof(buffer), 0);
+    // 3 Get input from user and send
+    memset(buffer, 0, sizeof(buffer)); // Clear buffer before typing
+    printf("Enter a message to send to the server: ");
+    fgets(buffer, sizeof(buffer), stdin); 
+    
+    // fgets adds a newline (\n) at the end. This line removes it.
+    buffer[strcspn(buffer, "\n")] = 0; 
+
+    send(sock, buffer, strlen(buffer), 0);
 
     // 4 Receive reply
+    memset(buffer, 0, sizeof(buffer));
     recv(sock, buffer, sizeof(buffer), 0);
     printf("Server says: %s\n", buffer);
 
@@ -36,31 +41,35 @@ int main() {
 }
 
 
-// Algorithm for TCP Client
-
+// Algorithm for Interactive TCP Client
 // Step 1: Start the program.
 
-// Step 2: Create a socket using
-// socket(AF_INET, SOCK_STREAM, 0).
+// Step 2: Create a socket using socket(AF_INET, SOCK_STREAM, 0).
 
-// Step 3: Define the server address using sockaddr_in.
+// Step 3: Define the server address using the sockaddr_in structure.
 
 // Step 4: Assign values to the server address:
 
-// Set address family to AF_INET
+// Set address family to AF_INET.
 
-// Set port number using htons()
+// Set port number using htons().
 
-// Set server IP using inet_addr()
+// Set server IP using inet_addr().
 
 // Step 5: Connect to the server using connect().
 
-// Step 6: Send message to the server using send().
+// Step 6: Clear the data buffer using memset().
 
-// Step 7: Receive response from the server using recv().
+// Step 7: Accept input from the user using fgets() and strip the newline character.
 
-// Step 8: Display the received message.
+// Step 8: Send the input message to the server using send() and strlen().
 
-// Step 9: Close the socket using close().
+// Step 9: Clear the data buffer again using memset().
 
-// Step 10: Stop the program.
+// Step 10: Receive the response from the server using recv().
+
+// Step 11: Display the received message on the terminal.
+
+// Step 12: Close the socket using close().
+
+// Step 13: Stop the program.
