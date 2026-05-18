@@ -1,186 +1,85 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 #include <arpa/inet.h>
-#include <time.h>
-
-#define PORT 9012
-#define MAX_FRAMES 10
-#define FRAME_LOSS_PROB 20
-#define ACK_LOSS_PROB 15
+#include <sys/time.h>
+#include <string.h>
 
 int main() {
+    int total_packets, window_size;
 
-    srand(time(0));
+    // --- USER INPUT ---
+    printf("Enter total number of frames to send: ");
+    scanf("%d", &total_packets);
+    printf("Enter window size: ");
+    scanf("%d", &window_size);
+    // ------------------
 
-    int sock;
-    struct sockaddr_in server;
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    struct sockaddr_in addr = { .sin_family = AF_INET, .sin_port = htons(9002) };
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    sock = socket(AF_INET,SOCK_STREAM,0);
+    // Set a 2-second timeout on the socket
+    struct timeval tv = { .tv_sec = 2, .tv_usec = 0 };
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    server.sin_family = AF_INET;
-    server.sin_port = htons(PORT);
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    int base = 0, next_seq = 0, ack;
+    socklen_t len = sizeof(addr);
 
-    connect(sock,(struct sockaddr*)&server,sizeof(server));
+    printf("\nStarting Go-Back-N transmission...\n");
 
-    printf("Go Back N ARQ Client connected\n");
-
-    char frame[50], ack[50];
-
-    int expected = 0;
-
-    while(expected < MAX_FRAMES) {
-
-        int n = read(sock,frame,sizeof(frame));
-        if(n <= 0) continue;
-
-        int seq;
-        sscanf(frame,"FRAME %d",&seq);
-
-        usleep(400000);
-
-        // Frame loss simulation
-        int rand_val = rand()%100;
-
-        if(rand_val < FRAME_LOSS_PROB) {
-
-            printf("❌ Frame %d LOST\n",seq);
-            continue;
+    while (base < total_packets) {
+        
+        // 1. Send packets up to the window size limit
+        while (next_seq < base + window_size && next_seq < total_packets) {
+            printf("Sending Frame: %d\n", next_seq);
+            sendto(sockfd, &next_seq, sizeof(next_seq), 0, (struct sockaddr*)&addr, len);
+            next_seq++;
         }
 
-        // Correct frame received
-        if(seq == expected) {
-
-            printf("Received: %s\n",frame);
-
-            rand_val = rand()%100;
-
-            if(rand_val < ACK_LOSS_PROB) {
-
-                printf("❌ ACK for frame %d LOST\n",seq);
-                continue;
+        // 2. Wait for ACK
+        if (recvfrom(sockfd, &ack, sizeof(ack), 0, (struct sockaddr*)&addr, &len) > 0) {
+            // Check for cumulative ACK moving forward
+            if (ack >= base) {
+                printf("Received ACK: %d\n", ack);
+                base = ack + 1; // Slide window forward
             }
-
-            sprintf(ack,"ACK %d",seq);
-            write(sock,ack,sizeof(ack));
-
-            printf("Sent: %s\n",ack);
-
-            expected++;
-        }
-
-        // Out of order frame
-        else {
-
-            printf("⚠ Discarded FRAME %d (Expecting %d)\n",seq,expected);
-
-            sprintf(ack,"ACK %d",expected-1);
-            write(sock,ack,sizeof(ack));
-
-            printf("Resent: %s\n",ack);
+        } else {
+            // 3. Timeout handling
+            // recvfrom returned -1 because the 2-second timer expired
+            printf("\n[TIMEOUT] Timer expired! Going back to Frame %d\n\n", base);
+            next_seq = base; // GO BACK N LOGIC: Reset next_seq back to base to resend window
         }
     }
-
-    printf("All frames received. Client exiting.\n");
-
-    close(sock);
-
+    
+    printf("All %d frames sent successfully!\n", total_packets);
     return 0;
 }
 
 
-// Algorithm: Go-Back-N ARQ (Client / Receiver)
-// Step 1
+// Algorithm for Go-Back-N Sender
+// Step 1: Start the program.
 
-// Start the program.
+// Step 2: Accept the total number of frames and the window size from the user.
 
-// Step 2
+// Step 3: Create a UDP socket using socket(AF_INET, SOCK_DGRAM, 0).
 
-// Initialize random number generator.
+// Step 4: Define the receiver address using the sockaddr_in structure (set AF_INET, htons(9002), and inet_addr("127.0.0.1")).
 
-// Step 3
+// Step 5: Attach a 2-second timeout to the socket using setsockopt() and SO_RCVTIMEO.
 
-// Create a socket using socket().
+// Step 6: Initialize the window start pointer (base = 0) and the next frame to send (next_seq = 0).
 
-// Step 4
+// Step 7: Loop while base is less than total_packets.
 
-// Set server IP and port.
+// Step 8: Inside the loop, check if next_seq is within the allowed window (next_seq < base + window_size). If true, send the frame using sendto(), increment next_seq, and repeat this step until the window is full.
 
-// Step 5
+// Step 9: Wait for an Acknowledgement using recvfrom().
 
-// Connect to the server using connect().
+// Step 10: Check the return value of recvfrom():
 
-// Step 6
+// If > 0 (Success): Check if the received ACK is valid (ACK >= base). If yes, slide the window forward by setting base = ACK + 1.
 
-// Initialize variable:
+// If < 0 (Timeout): Display a timeout message. Execute the "Go-Back" logic by resetting next_seq = base (this forces the sender to retransmit the entire unacknowledged window).
 
-// expected = 0
+// Step 11: Repeat from Step 7 until all frames are sent and acknowledged.
 
-// (This stores the next expected frame number.)
-
-// Step 7
-
-// Repeat while expected < MAX_FRAMES.
-
-// Step 8 — Receive Frame
-
-// Read frame from server.
-
-// Extract sequence number.
-
-// Step 9 — Simulate Frame Loss
-
-// Generate random number.
-
-// If random number is less than FRAME_LOSS_PROB:
-
-// Print frame lost message.
-
-// Discard frame.
-
-// Continue loop.
-
-// Step 10 — Correct Frame Received
-
-// If received frame number equals expected:
-
-// Print received frame.
-
-// Simulate ACK loss using probability.
-
-// If ACK is not lost:
-
-// Create acknowledgement "ACK seq".
-
-// Send ACK to server.
-
-// Increment expected.
-
-// Step 11 — Out-of-Order Frame
-
-// If frame number is not equal to expected:
-
-// Discard frame.
-
-// Send ACK for the last correctly received frame.
-
-// Example:
-
-// ACK expected-1
-// Step 12
-
-// Repeat Steps 8–11 until all frames are received.
-
-// Step 13
-
-// Display message that all frames are received.
-
-// Step 14
-
-// Close socket.
-
-// Step 15
-
-// End program.
+// Step 12: Stop the program.

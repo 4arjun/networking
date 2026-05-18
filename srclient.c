@@ -1,166 +1,28 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <time.h>
+Algorithm for Selective Repeat Sender
+Step 1: Start the program.
 
-#define PORT 9011
-#define MAX_FRAMES 10
-#define FRAME_LOSS_PROB 20  // 20% chance frame is lost
-#define ACK_LOSS_PROB 15    // 15% chance ACK is lost
+Step 2: Accept the total number of frames and the window size from the user.
 
-int main() {
-    srand(time(0)); 
+Step 3: Create a UDP socket using socket(AF_INET, SOCK_DGRAM, 0).
 
-    int sock;
-    struct sockaddr_in server;
+Step 4: Define the receiver address using the sockaddr_in structure.
 
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+Step 5: Attach a 2-second timeout to the socket using setsockopt() and SO_RCVTIMEO.
 
-    server.sin_family = AF_INET;
-    server.sin_port = htons(PORT);
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+Step 6: Initialize variables: base = 0, next_seq = 0, and an array ack_received initialized to all zeros.
 
-    connect(sock, (struct sockaddr *)&server, sizeof(server));
-    printf("Selective Repeat ARQ Client connected\n");
+Step 7: Loop while base is less than total_packets.
 
-    char frame[50], ack[50];
-    int received[MAX_FRAMES] = {0};
-    int received_count = 0;
+Step 8: Inside the loop, send new frames. If next_seq < base + window_size, send the frame, increment next_seq, and repeat this step until the window limit is reached.
 
-    while (received_count < MAX_FRAMES) {
-        int n = read(sock, frame, sizeof(frame));
-        if (n <= 0) continue;
+Step 9: Wait for an Acknowledgement using recvfrom().
 
-        int seq;
-        sscanf(frame, "FRAME %d", &seq);
+Step 10: Check the return value of recvfrom():
 
-        
-        usleep(400000);
+If > 0 (Success): Mark the specific ACK in the array (ack_received[ack] = 1). Check if ack == base. If it is, use a while loop to increment base past all consecutively received ACKs (sliding the window).
 
-        // CASE 2: Frame lost (probabilistic)
-        int rand_val = rand() % 100;
-        if (rand_val < FRAME_LOSS_PROB) {
-            printf("❌ Frame %d LOST\n", seq);
-            continue;
-        }
+If < 0 (Timeout): Display a timeout message. Loop from base to next_seq. If ack_received[i] == 0 (meaning no ACK was received for this specific frame), retransmit frame i.
 
-        if (!received[seq]) {
-            printf("Received: %s\n", frame);
-            received[seq] = 1;
-            received_count++;
-        }
+Step 11: Repeat from Step 7 until all frames are successfully sent and acknowledged.
 
-        // CASE 3: ACK lost (probabilistic)
-        rand_val = rand() % 100;
-        if (rand_val < ACK_LOSS_PROB) {
-            printf("❌ ACK for frame %d LOST\n", seq);
-            continue;
-        }
-
-        // CASE 1: Normal
-        sprintf(ack, "ACK %d", seq);
-        write(sock, ack, sizeof(ack));
-        printf("Sent: %s\n", ack);
-    }
-
-    printf("All frames received. Client exiting.\n");
-    close(sock);
-    return 0;
-}
-
-
-
-// Algorithm: Selective Repeat ARQ (Client / Receiver)
-// Step 1
-
-// Start the program.
-
-// Step 2
-
-// Initialize random number generator.
-
-// Step 3
-
-// Create socket using socket().
-
-// Step 4
-
-// Set server address and port.
-
-// Step 5
-
-// Connect to the server using connect().
-
-// Step 6
-
-// Initialize arrays:
-
-// received[] → track received frames
-
-// received_count → count received frames.
-
-// Step 7
-
-// Repeat while received_count < MAX_FRAMES.
-
-// Step 8 — Receive Frame
-
-// Read frame message from server.
-
-// Extract frame sequence number.
-
-// Step 9 — Simulate Frame Loss
-
-// Generate random number.
-
-// If it falls within frame loss probability:
-
-// Display frame lost message.
-
-// Do not process frame.
-
-// Continue loop.
-
-// Step 10 — Process Correct Frame
-
-// If frame is not already received:
-
-// Mark frame as received.
-
-// Increment received count.
-
-// Step 11 — Simulate ACK Loss
-
-// Generate random number.
-
-// If it falls within ACK loss probability:
-
-// Display ACK lost message.
-
-// Do not send ACK.
-
-// Continue loop.
-
-// Step 12 — Send ACK
-
-// Create ACK message "ACK seq".
-
-// Send ACK to server using write().
-
-// Step 13
-
-// Repeat Steps 8–12 until all frames are received.
-
-// Step 14
-
-// Display message indicating all frames received.
-
-// Step 15
-
-// Close socket.
-
-// Step 16
-
-// End program.
+Step 12: Stop the program.

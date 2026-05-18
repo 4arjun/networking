@@ -15,7 +15,7 @@ int main() {
 
     srand(time(NULL)); // Seed the random number generator
 
-    printf("\nGo-Back-N Receiver ready (20%% simulated packet loss). Waiting for frames...\n");
+    printf("\nReceiver ready (with 20%% simulated packet loss). Waiting for frames...\n");
     
     // INFINITE LOOP: The server listens forever
     while (1) {
@@ -28,16 +28,14 @@ int main() {
         }
         // ------------------------------------------
 
-        // Strict ordering check
         if (recv_seq == expected) {
             printf("Received Frame: %d\n", recv_seq);
             expected++; // Move to next expected frame
         } else {
-            printf("Out of order! Expected %d, got %d\n", expected, recv_seq);
-            // Do NOT increment expected.
+            printf("Duplicate/Out of order! Expected %d, got %d\n", expected, recv_seq);
         }
         
-        // Send Cumulative ACK (highest in-order frame received)
+        // Send ACK for the highest successfully received frame
         int ack = expected - 1; 
         sendto(sockfd, &ack, sizeof(ack), 0, (struct sockaddr*)&addr, len);
     }
@@ -45,28 +43,28 @@ int main() {
     return 0;
 }
 
-// Algorithm for Infinite Go-Back-N Receiver
+
 // Step 1: Start the program.
 
 // Step 2: Create a UDP socket using socket(AF_INET, SOCK_DGRAM, 0).
 
 // Step 3: Define the receiver address using sockaddr_in structure and bind() it to the socket.
 
-// Step 4: Initialize the expected frame variable to 0. Seed the random number generator.
+// Step 4: Initialize the expected frame variable to 0. Seed the random number generator for simulation.
 
 // Step 5: Enter an infinite loop (while(1)) to continuously listen for packets.
 
 // Step 6: Wait to receive a frame using recvfrom().
 
-// Step 7: Simulate packet loss by generating a random number. If the condition is met (e.g., 20% chance), drop the packet using the continue statement and return to Step 6.
+// Step 7: Simulate packet loss by generating a random number. If the condition is met (e.g., 20% chance), ignore the packet using the continue statement and return to Step 6.
 
-// Step 8: Compare the received frame sequence with the strict expected frame sequence.
+// Step 8: Compare the received frame sequence with the expected frame.
 
-// If they match (In Order): Display a success message and increment expected by 1.
+// If they match: Display success message and increment expected by 1.
 
-// If they do not match (Out of Order): Display an error/discard message. Do NOT increment expected.
+// If they do not match: Display a duplicate/error message and do NOT increment expected.
 
-// Step 9: Calculate the cumulative ACK to send (ack = expected - 1). This represents the highest frame received perfectly in order.
+// Step 9: Calculate the ACK to send (ack = expected - 1).
 
 // Step 10: Send the calculated ACK back to the sender using sendto().
 
