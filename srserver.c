@@ -3,35 +3,44 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <unistd.h>
 
 int main() {
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    struct sockaddr_in addr = { .sin_family = AF_INET, .sin_port = htons(9002) };
-    addr.sin_addr.s_addr = INADDR_ANY;
-    bind(sockfd, (struct sockaddr*)&addr, sizeof(addr));
+    int server_sock, expected = 0, recv_seq;
+    int received[100] = {0}; // Array to buffer out-of-order frames
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_size;
 
-    int expected = 0, recv_seq;
-    socklen_t len = sizeof(addr);
-    
-    // Array to buffer out-of-order frames
-    int received[100] = {0}; 
+    // 1 Create UDP socket
+    server_sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    // 2 Configure server
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(9002);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    // 3 Bind socket
+    bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
 
     srand(time(NULL)); // Seed the random number generator
 
     printf("\nSelective Repeat Receiver ready (20%% simulated packet loss). Waiting for frames...\n");
     
-    // INFINITE LOOP: The server listens forever
+    addr_size = sizeof(client_addr);
+
+    // 4 INFINITE LOOP: The server listens forever
     while (1) {
-        recvfrom(sockfd, &recv_seq, sizeof(recv_seq), 0, (struct sockaddr*)&addr, &len);
+        // Receive frame and capture client address
+        recvfrom(server_sock, &recv_seq, sizeof(recv_seq), 0, (struct sockaddr*)&client_addr, &addr_size);
         
         // --- SIMULATED PACKET LOSS (20% Chance) ---
-        if (rand() % 10 < 1) {
+        if (rand() % 10 < 2) {
             printf("[!] Network Drop Simulation: Frame %d lost!\n", recv_seq);
             continue; // Ignore the packet, do not send an ACK
         }
         // ------------------------------------------
 
-        // Mark the frame as received and send an INDEPENDENT ACK
+        // Mark the frame as received and print status
         if (received[recv_seq] == 0) {
             received[recv_seq] = 1;
             printf("Received Frame: %d\n", recv_seq);
@@ -39,8 +48,8 @@ int main() {
             printf("Received Duplicate Frame: %d\n", recv_seq);
         }
         
-        // Send ACK for this exact frame (Not cumulative)
-        sendto(sockfd, &recv_seq, sizeof(recv_seq), 0, (struct sockaddr*)&addr, len);
+        // 5 Send INDEPENDENT ACK for this exact frame back to the specific client
+        sendto(server_sock, &recv_seq, sizeof(recv_seq), 0, (struct sockaddr*)&client_addr, addr_size);
 
         // Deliver frames to the application layer if they are in order
         if (recv_seq == expected) {
@@ -51,28 +60,39 @@ int main() {
         }
     }
 
+    // 6 Close socket (Unreachable due to infinite loop, but good practice)
+    close(server_sock);
     return 0;
 }
 
-// Algorithm for Infinite Selective Repeat Receiver
+
+// Algorithm for Selective Repeat Receiver (Server)
 // Step 1: Start the program.
 
-// Step 2: Create a UDP socket using socket(AF_INET, SOCK_DGRAM, 0).
+// Step 2: Declare an array received initialized to zeros to buffer out-of-order packets.
 
-// Step 3: Define the receiver address using sockaddr_in structure and bind() it.
+// Step 3: Create a UDP server socket using socket(AF_INET, SOCK_DGRAM, 0).
 
-// Step 4: Initialize expected = 0 and an array received initialized to all zeros to buffer out-of-order packets. Seed the random number generator.
+// Step 4: Define the server address using the sockaddr_in structure:
 
-// Step 5: Enter an infinite loop (while(1)) to continuously listen for packets.
+// Set address family to AF_INET.
 
-// Step 6: Wait to receive a frame using recvfrom().
+// Set port number using htons().
 
-// Step 7: Simulate packet loss by generating a random number. If dropped, use continue to return to Step 6 without sending an ACK.
+// Set IP address using INADDR_ANY.
 
-// Step 8: Check if the received frame is new. If it is new (received[seq] == 0), mark it as received (received[seq] = 1) and display a success message.
+// Step 5: Bind the socket with the server address using bind(). Initialize expected = 0 and seed the random number generator.
 
-// Step 9: Send an Independent ACK back for that exact sequence number using sendto().
+// Step 6: Enter an infinite loop (while(1)) to continuously listen for packets.
 
-// Step 10: Check if the sequence number matches expected. If yes, use a while loop to slide expected forward past any buffered, out-of-order frames that were received earlier.
+// Step 7: Wait to receive a frame from the sender using recvfrom(). Ensure the sender's address is saved in client_addr.
 
-// Step 11: Return to Step 6 to wait for the next frame.
+// Step 8: Simulate packet loss by generating a random number. If the condition is met (e.g., 20% chance), ignore the packet using the continue statement and return to Step 7.
+
+// Step 9: Check if the received frame is new (received[seq] == 0). If it is new, mark it as received in the array and display a success message. If it is already marked, display a duplicate message.
+
+// Step 10: Send an Independent ACK back for that exact sequence number using sendto() to client_addr.
+
+// Step 11: Check if the received sequence number matches expected. If yes, use a while loop to slide expected forward past any buffered, out-of-order frames received earlier.
+
+// Step 12: Return to Step 7 to wait for the next frame.
