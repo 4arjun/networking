@@ -3,23 +3,34 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <unistd.h>
 
 int main() {
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    struct sockaddr_in addr = { .sin_family = AF_INET, .sin_port = htons(9002) };
-    addr.sin_addr.s_addr = INADDR_ANY;
-    bind(sockfd, (struct sockaddr*)&addr, sizeof(addr));
+    int server_sock, expected = 0, recv_seq, ack;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_size;
 
-    int expected = 0, recv_seq;
-    socklen_t len = sizeof(addr);
+    // 1 Create UDP socket
+    server_sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    // 2 Configure server
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(9002);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    // 3 Bind socket
+    bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
 
     srand(time(NULL)); // Seed the random number generator
 
     printf("\nReceiver ready (with 20%% simulated packet loss). Waiting for frames...\n");
     
-    // INFINITE LOOP: The server listens forever
+    addr_size = sizeof(client_addr);
+
+    // 4 INFINITE LOOP: The server listens forever
     while (1) {
-        recvfrom(sockfd, &recv_seq, sizeof(recv_seq), 0, (struct sockaddr*)&addr, &len);
+        // Receive frame and capture client address
+        recvfrom(server_sock, &recv_seq, sizeof(recv_seq), 0, (struct sockaddr*)&client_addr, &addr_size);
         
         // --- SIMULATED PACKET LOSS (20% Chance) ---
         if (rand() % 10 < 2) {
@@ -35,37 +46,48 @@ int main() {
             printf("Duplicate/Out of order! Expected %d, got %d\n", expected, recv_seq);
         }
         
-        // Send ACK for the highest successfully received frame
-        int ack = expected - 1; 
-        sendto(sockfd, &ack, sizeof(ack), 0, (struct sockaddr*)&addr, len);
+        // 5 Send ACK back to the specific client
+        ack = expected - 1; 
+        sendto(server_sock, &ack, sizeof(ack), 0, (struct sockaddr*)&client_addr, addr_size);
     }
 
+    // 6 Close socket (Unreachable due to infinite loop, but good practice)
+    close(server_sock);
     return 0;
 }
 
 
+// Algorithm for Stop-and-Wait Receiver (Server)
 // Step 1: Start the program.
 
-// Step 2: Create a UDP socket using socket(AF_INET, SOCK_DGRAM, 0).
+// Step 2: Create a UDP server socket using socket(AF_INET, SOCK_DGRAM, 0).
 
-// Step 3: Define the receiver address using sockaddr_in structure and bind() it to the socket.
+// Step 3: Define the server address using the sockaddr_in structure:
 
-// Step 4: Initialize the expected frame variable to 0. Seed the random number generator for simulation.
+// Set address family to AF_INET.
 
-// Step 5: Enter an infinite loop (while(1)) to continuously listen for packets.
+// Set port number using htons().
 
-// Step 6: Wait to receive a frame using recvfrom().
+// Set IP address using INADDR_ANY.
 
-// Step 7: Simulate packet loss by generating a random number. If the condition is met (e.g., 20% chance), ignore the packet using the continue statement and return to Step 6.
+// Step 4: Bind the socket with the server address using bind().
 
-// Step 8: Compare the received frame sequence with the expected frame.
+// Step 5: Initialize the expected frame variable to 0. Seed the random number generator.
 
-// If they match: Display success message and increment expected by 1.
+// Step 6: Enter an infinite loop (while(1)) to continuously listen for packets.
+
+// Step 7: Wait to receive a frame from the sender using recvfrom(). Ensure the sender's address is saved in client_addr.
+
+// Step 8: Simulate packet loss by generating a random number. If the condition is met (e.g., 20% chance), ignore the packet using the continue statement and return to Step 7.
+
+// Step 9: Compare the received frame sequence with the expected frame:
+
+// If they match: Display a success message and increment expected by 1.
 
 // If they do not match: Display a duplicate/error message and do NOT increment expected.
 
-// Step 9: Calculate the ACK to send (ack = expected - 1).
+// Step 10: Calculate the ACK to send (ack = expected - 1).
 
-// Step 10: Send the calculated ACK back to the sender using sendto().
+// Step 11: Send the calculated ACK back to the sender using sendto() and the stored client_addr.
 
-// Step 11: Return to Step 6 to wait for the next frame.
+// Step 12: Return to Step 7 to wait for the next frame.
